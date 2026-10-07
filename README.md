@@ -14,9 +14,10 @@ GNU Make、Arm GCC、OpenOCD、GDBを使用したCLIベースの開発環境を�
 - Pico WをDebug Probeとして使用
 - OpenOCD + GDBによる書き込み・デバッグ
 
-## Documents
+## Articles
 
-- [Windows開発環境の構築](articles/pico-trykernel-windows-env.md)
+- [「ラズパイPicoで1500行 ゼロから作るOS」を2026年に動かす](https://zenn.dev/helowota/articles/pico-trykernel-windows-env)
+- [Markdownソース](articles/pico-trykernel-windows-env.md)
 
 ## Reference
 
