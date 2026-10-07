@@ -16,7 +16,7 @@ GNU Make、Arm GCC、OpenOCD、GDBを使用したCLIベースの開発環境を�
 
 ## Documents
 
-- [Windows開発環境の構築](docs/setup-windows-cli.md)
+- [Windows開発環境の構築](articles/pico-trykernel-windows-env.md)
 
 ## Reference
 

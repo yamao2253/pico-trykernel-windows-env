@@ -56,7 +56,7 @@ Eclipseを使った環境よりも、CLIベースの環境の方が構成がシ�
 
 最終的には、次のような開発環境を構築します。
 
-![開発環境の構成](images/blockdiagram.png)
+![開発環境の構成](/images/pico-trykernel-windows-env/blockdiagram.png)
 
 ---
 
