@@ -1,3 +1,11 @@
+---
+title: "「ラズパイPicoで1500行 ゼロから作るOS」を2026年に動かす"
+emoji: "🥧"
+type: "tech"
+topics: ["raspberrypi", "pico", "os", "gdb", "openocd"]
+published: false
+---
+
 # 「ラズパイPicoで1500行 ゼロから作るOS」を2026年に動かす
 
 2026/10/6
