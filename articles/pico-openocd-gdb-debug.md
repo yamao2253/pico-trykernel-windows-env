@@ -93,13 +93,13 @@ OpenOCDでは、デバッグプローブ側の設定と、デバッグ対象の�
 
 ### 設定ファイルのカスタマイズ
 
-OpenOCDに付属する設定ファイルは、通常、そのまま使用します。
+ここまでは、OpenOCDに付属する標準の設定ファイルを使用しました。
 
-通信速度などの調整は、`-c` オプションで指定できます。今回の `-c "adapter speed 1000"` もその一例です。
+標準の設定ファイルを変更しなくても、`-c` オプションでOpenOCDのコマンドを指定し、起動時に実行できます。今回の `-c "adapter speed 1000"` は、SWDの通信速度を設定するコマンドを実行している例です。
 
-ボード固有の設定や、複数の設定をまとめたい場合は、独自の `.cfg` ファイルを作成することもできます。
+さらに、使用するデバッグプローブやマイコンの設定、通信速度などを1つにまとめたい場合は、**独自の `.cfg` ファイルを作成する方法**もあります。
 
-例えば、次のような `pico-debug.cfg` を用意します。
+例えば、`my-pico-debug.cfg` というファイルを次の内容で作成します。
 
 ```tcl
 source [find interface/cmsis-dap.cfg]
@@ -107,15 +107,17 @@ adapter speed 1000
 source [find target/rp2040.cfg]
 ```
 
+`source [find ...]` は、OpenOCDに付属する設定ファイルを検索して読み込むための記述です。
+
 このファイルをカレントディレクトリに保存すれば、PowerShellから次のように起動できます。
 
 ```powershell
-openocd -f .\pico-debug.cfg
+openocd -f .\my-pico-debug.cfg
 ```
 
-標準の設定ファイルを直接変更せず、必要な設定だけを追加する方法です。
+この方法なら、標準の設定ファイルを直接書き換えずに、プロジェクト専用の設定を管理できます。
 
-今回のTry Kernelでは、独自の設定ファイルを作る必要はなく、最初に示した起動コマンドを使用しています。
+なお、今回のTry Kernelでは独自の `.cfg` は作成せず、標準の設定ファイルと `-c` オプションを組み合わせて使用しています。
 
 ## 設定ファイルの保存先を確認する
 
@@ -139,10 +141,10 @@ openocd -f .\pico-debug.cfg
 Get-Command openocd | Select-Object Source
 ```
 
-私の環境では、次の場所にインストールされていました。
+私の環境では、次の場所にインストールされていました（ユーザ名は置き換えています）。
 
 ```text
-C:\Users\yamao\AppData\Roaming\xPacks\@xpack-dev-tools\openocd\0.12.0-7.1\.content\bin\openocd.exe
+C:\Users\<ユーザ名>\AppData\Roaming\xPacks\@xpack-dev-tools\openocd\0.12.0-7.1\.content\bin\openocd.exe
 ```
 
 また、OpenOCDが設定ファイルをどこから検索しているかは、次のコマンドで確認できます。
@@ -151,18 +153,18 @@ C:\Users\yamao\AppData\Roaming\xPacks\@xpack-dev-tools\openocd\0.12.0-7.1\.conte
 openocd -c "echo [find interface/cmsis-dap.cfg]; echo [find target/rp2040.cfg]; shutdown"
 ```
 
-実行結果は次のとおりです（起動時のバージョン表示などは省略）。
+実行結果は次のとおりです（起動時のバージョン表示などは省略し、ユーザ名は置き換えています）。
 
 ```text
-C:/Users/yamao/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/bin/../openocd/scripts/interface/cmsis-dap.cfg
-C:/Users/yamao/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/bin/../openocd/scripts/target/rp2040.cfg
+C:/Users/<ユーザ名>/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/bin/../openocd/scripts/interface/cmsis-dap.cfg
+C:/Users/<ユーザ名>/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/bin/../openocd/scripts/target/rp2040.cfg
 shutdown command invoked
 ```
 
 `bin/..` は、`bin` の1つ上のディレクトリを意味します。したがって、2つの設定ファイルは、実際には次のディレクトリ以下に配置されています。
 
 ```text
-C:/Users/yamao/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/openocd/scripts/
+C:/Users/<ユーザ名>/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/openocd/scripts/
 ```
 
 ここで、OpenOCDをどのディレクトリからでも実行できる理由も分かります。
