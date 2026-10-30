@@ -208,94 +208,175 @@ OpenOCDは起動したままにして、別のPowerShellからGDBを実行しま
 
 # GDBの起動と接続
 
-別のPowerShellを開き、デバッグ対象のELFファイルを指定してGDBを起動します。
+GDBを起動する際には、デバッグ対象のELFファイルを指定します。
+
+ELFファイルには、プログラムの実行コードに加えて、関数名や変数名などのシンボル情報や、ビルド時の設定によってはソースコードとの対応関係など、デバッグに必要な情報が含まれています。
+
+別のPowerShellを開き、Try Kernelの `part_5` ディレクトリから次のコマンドでGDBを起動します。
 
 ```powershell
-arm-none-eabi-gdb .\kernel.elf
+arm-none-eabi-gdb build/trykernel.elf
 ```
 
-`kernel.elf` は説明用のファイル名です。実際にはTry Kernelのビルドで生成したELFファイルを指定します。
+GDBが起動すると、ELFファイルのシンボル情報が読み込まれます。
 
-ELFファイルには、実行コードに加えて、ビルド時の設定によってはデバッグ用のシンボル情報などが含まれます。ソースコードと対応させてデバッグするには、デバッグ情報を含むELFファイルを使用します。
-
-GDBが起動したら、OpenOCDへ接続します。
-
-```gdb
-target remote localhost:3333
+```text
+GNU gdb (xPack GNU Arm Embedded GCC x86_64) 15.2.90.20241130-git
+...
+Reading symbols from build/trykernel.elf...
+(gdb)
 ```
 
-ここで指定した `3333` は、OpenOCDが待ち受けているGDBサーバのポート番号です。
+GDBが起動したら、`target remote` コマンドを使用してOpenOCDに接続します。
+
+`localhost:3333` は、OpenOCDがGDBサーバとして待ち受けている接続先です。今回は同じPC上でOpenOCDとGDBを実行しているため、`localhost` を指定します。
+
+```text
+(gdb) target remote localhost:3333
+Remote debugging using localhost:3333
+disp_020 () at kernel/dispatch.S:50
+50          beq     disp_020
+```
 
 続いて、RP2040をリセットして停止します。
 
-```gdb
-monitor reset halt
+ここでは、GDBからOpenOCDのコマンドを実行するための `monitor` コマンドを使用します。`reset halt` はOpenOCD側のコマンドで、マイコンをリセットした後、実行を停止させます。
+
+```text
+(gdb) monitor reset halt
+[rp2040.core0] halted due to debug-request, current mode: Thread
+xPSR: 0xf1000000 pc: 0x000000ea msp: 0x20041f00
+[rp2040.core1] halted due to debug-request, current mode: Thread
+xPSR: 0xf1000000 pc: 0x000000ea msp: 0x20041f00
 ```
 
-`monitor` は、GDBからOpenOCD固有のコマンドを実行するための仕組みです。
-
-つまり、`reset halt` はGDB自身のコマンドではなく、GDBを経由してOpenOCDに渡されるコマンドです。
+RP2040には2つのCPUコアがあり、今回のログでは両方のコアが停止したことを確認できます。
 
 # 基本的なデバッグ操作
 
-接続後は、GDBからプログラムの実行を制御できます。
+OpenOCDへの接続後は、GDBからプログラムの実行を制御したり、レジスタやメモリの内容を確認したりできます。
 
-| コマンド | 内容 |
-|---|---|
-| `monitor reset halt` | マイコンをリセットして停止 |
-| `break main` | `main` 関数にブレークポイントを設定 |
-| `continue` | 実行を再開 |
-| `Ctrl+C` | 実行中のプログラムを停止 |
-| `next` | 次のソース行へ進む（関数内部には入らない） |
-| `step` | 次のソース行へ進む（関数内部にも入る） |
-| `print 変数名` | 変数の値を表示 |
-| `info registers` | CPUレジスタを表示 |
-| `x/16wx アドレス` | 指定アドレスから32ビット値を16個表示 |
-| `quit` | GDBを終了 |
+GUIデバッガでおなじみの操作を中心に、対応するGDBコマンドを一覧にまとめます。
+
+| 操作 | GDBコマンド | 内容 |
+|---|---|---|
+| ブレークポイント設定 | `break main` | `main` 関数にブレークポイントを設定 |
+| 実行再開 | `continue` | 停止しているプログラムの実行を再開 |
+| 一時停止 | `Ctrl+C` | 実行中のプログラムを中断 |
+| ステップオーバ | `next` | 次のソース行へ進む（関数内部には入らない） |
+| ステップイン | `step` | 次のソース行へ進む（関数内部にも入る） |
+| 変数の確認 | `print 変数名` | 変数の値を表示 |
+| レジスタの確認 | `info registers` | CPUレジスタを表示 |
+| メモリの確認 | `x/16wx アドレス` | 指定アドレスから32ビット値を16個表示 |
+| リセット・停止 | `monitor reset halt` | OpenOCD経由でマイコンをリセットして停止 |
+| GDBの終了 | `quit` | GDBを終了 |
+
+以下では、実際にTry Kernelをデバッグした結果を紹介します。
 
 ## ブレークポイントを設定する
 
-例えば、`main` 関数で停止させる場合は、次のように操作します。
+`main` 関数で停止させるため、`break main` でブレークポイントを設定します。
 
-```gdb
-monitor reset halt
-break main
-continue
+```text
+(gdb) break main
+warning: could not convert 'main' from the host encoding (CP1252) to UTF-32.
+This normally should not happen, please file a bug report.
+Breakpoint 1 at 0x1000093c: file kernel/inittsk.c, line 31.
+Note: automatically using hardware breakpoints for read-only addresses.
 ```
 
-プログラムが `main` に到達すると停止します。
+文字コード変換に関するWarningが出ていますが、`main` 関数へのブレークポイント設定は成功しています。
 
-なお、対象のELFファイルにシンボル情報が含まれている必要があります。また、すでに `main` を通過している場合は、リセットなどで再実行する必要があります。
+続いて、`continue` でプログラムの実行を再開します。
+
+```text
+(gdb) continue
+Continuing.
+
+Thread 1 "rp2040.core0" hit Breakpoint 1, main () at kernel/inittsk.c:31
+31          tskid_ini = tk_cre_tsk(&ctsk_ini);
+```
+
+`kernel/inittsk.c` の31行目で停止しました。
+
+なお、上記の31行目には実際には日本語コメントがありますが、今回のGDBでは文字化けしているため、掲載時にコメント部分を省略しています。
+
+### デバッグ情報について
+
+GDBでソースコードを表示しながらデバッグするには、コンパイル時に `-g` オプションを指定して、ELFファイルにデバッグ情報を含めておく必要があります。
+
+```makefile
+CFLAGS += -g
+```
+
+デバッグ情報には、ソースコードの行番号や変数などに関する情報が含まれます。これにより、GDBでソースコードを追いながらステップ実行したり、変数の値を確認したりできます。
+
+Try Kernelのビルド環境とMakefileの設定については、[「Windows 11でRaspberry Pi PicoのTry Kernel開発環境を構築する」](https://zenn.dev/helowota/articles/pico-trykernel-windows-env)で紹介しています。
 
 ## ステップ実行する
 
-停止した状態から、次のソース行へ進めるには `next` を使用します。
+停止した状態から、次のソース行へ進めるには `next` を使用します。これはGUIデバッガのステップオーバに相当します。
 
 ```gdb
 next
 ```
 
-関数の内部に入って処理を追いかけたい場合は、`step` を使用します。
+関数の内部に入って処理を追いかけたい場合は、`step` を使用します。こちらはステップインに相当します。
 
-```gdb
-step
+```text
+(gdb) step
+tk_sta_tsk (tskid=1, stacd=0) at kernel/task_mange.c:52
+52          ER      err = E_OK;
 ```
+
+今回の実行では、`tk_sta_tsk()` 関数の内部に入り、`kernel/task_mange.c` の52行目で停止しました。
 
 ## レジスタやメモリを確認する
 
-CPUレジスタを表示するには、次のコマンドを使用します。
+CPUレジスタを表示するには、`info registers` コマンドを使用します。
 
-```gdb
-info registers
+```text
+(gdb) info registers
+r0             0x1                 1
+r1             0x0                 0
+r2             0x1                 1
+r3             0x1                 1
+r4             0x0                 0
+r5             0x20041f01          537140993
+r6             0x18000000          402653184
+r7             0x2003ffc8          537133000
+r8             0xffffffff          -1
+r9             0xffffffff          -1
+r10            0xffffffff          -1
+r11            0xffffffff          -1
+r12            0x3000              12288
+sp             0x2003ffc8          0x2003ffc8
+lr             0x10000957          268437847
+pc             0x10000c1a          0x10000c1a <tk_sta_tsk+10>
+xpsr           0x1000000           16777216
+msp            0x2003ffc8          0x2003ffc8
+psp            0xfffffffc          0xfffffffc
+primask        0x0                 0
+basepri        0x0                 0
+faultmask      0x0                 0
+control        0x0                 0
 ```
+
+例えば、`pc` はプログラムカウンタ、`sp` はスタックポインタ、`lr` はリンクレジスタです。
+
+今回の `pc` には `tk_sta_tsk+10` と表示されており、現在の命令位置が関数名とオフセットで示されています。
 
 メモリの内容を確認するには、`x` コマンドを使用します。
 
-```gdb
-x/16wx 0x20000000
+```text
+(gdb) x/16wx 0x20000000
+0x20000000 <ctsk_ini>:     0x00000021  0x1000090d  0x00000001  0x00000100
+0x20000010 <ctsk_ini+16>:  0x200000b0  0x61636969  0x00000000  0x00000000
+0x20000020 <dev_tbl+12>:   0x00000000  0x00000000  0x10001a41  0x10001e6d
+0x20000030 <dev_tbl+28>:   0x10001f01  0x62636969  0x00000000  0x00000001
 ```
 
-この例では、SRAMの先頭アドレスから32ビット単位で16個の値を16進数表示します。
+この例では、SRAMの先頭アドレスから32ビット単位で16個の値を16進数表示しています。
 
 `x/16wx` の意味は次のとおりです。
 
@@ -303,13 +384,33 @@ x/16wx 0x20000000
 - `w`：1個あたり4バイト（32ビット）
 - `x`：16進数で表示
 
+また、`ctsk_ini` や `dev_tbl` のように、対応するシンボル名も表示されています。
+
+## Windows環境での文字コードについて
+
+今回使用したxPack版GDBでは、日本語コメントの文字化けと、文字コード変換に関するWarningが発生しました。
+
+PowerShellのコンソールをUTF-8に変更しても、GDB側の文字コード認識はCP1252のままでした。また、`set charset UTF-8` も受け付けられませんでした。
+
+原因の特定と対処は今後の課題としますが、ブレークポイントやステップ実行、レジスタ・メモリの確認など、基本的なデバッグ操作は正常に動作しています。
+
 # OpenOCDとGDBの終了
 
-GDBを終了するには、GDBのプロンプトから次のコマンドを実行します。
+GDBを終了するには、GDBのプロンプトから `quit` コマンドを実行します。
 
-```gdb
-quit
+```text
+(gdb) quit
+A debugging session is active.
+
+        Inferior 1 [Remote target] will be detached.
+
+Quit anyway? (y or n) y
+Detaching from program: C:\home\<ユーザ名>\repos\src\pico\interface_trykernel\part_5\build\trykernel.elf, Remote target
+Ending remote debugging.
+[Inferior 1 (Remote target) detached]
 ```
+
+実行中のデバッグセッションがあるため、終了してよいか確認されます。ここでは `y` を入力して終了します。
 
 OpenOCDはGDBとは別プロセスとして動作しているため、GDBを終了しても通常は起動したままです。
 
