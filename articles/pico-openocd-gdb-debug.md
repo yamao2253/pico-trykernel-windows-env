@@ -60,6 +60,8 @@ GDBはTCP/IPでOpenOCDのGDBサーバに接続します。OpenOCDはUSB経由で
 
 VSCodeなどのGUIからデバッグする場合も基本的な仕組みは同じですが、本記事ではそれぞれの役割を理解するため、OpenOCDとGDBを個別に起動します。
 
+---
+
 # OpenOCDの起動
 
 PowerShellを開き、次のコマンドを実行します。
@@ -78,41 +80,99 @@ openocd -f interface/cmsis-dap.cfg -c "adapter speed 1000" -f target/rp2040.cfg
 
 ## 設定ファイル（cfg）の役割
 
-OpenOCDは、デバッグプローブやターゲットとなるマイコンの違いを設定ファイルで吸収する仕組みになっています。
+OpenOCDには、さまざまなデバッグプローブやマイコンに対応する設定ファイル（`.cfg`）が標準で用意されています。
 
-`interface/cmsis-dap.cfg` は、CMSIS-DAP対応のデバッグプローブを使用するための設定です。
+今回 `-f` オプションで指定している2つの設定ファイルも、OpenOCDに付属するもので、自分で作成する必要はありません。
 
-一方、`target/rp2040.cfg` は、RP2040固有のデバッグ設定を行います。RP2040に搭載されている2つのCortex-M0+コアなどをOpenOCDが扱うための設定が含まれています。
+- `interface/cmsis-dap.cfg`：CMSIS-DAP対応のデバッグプローブを使用するための設定ファイル
+- `target/rp2040.cfg`：RP2040をデバッグするための設定ファイル
 
-この2つを組み合わせることで、CMSIS-DAP対応のDebug ProbeからRP2040をデバッグできます。
+OpenOCDでは、デバッグプローブ側の設定と、デバッグ対象のマイコン側の設定を分けて管理しています。
 
-## なぜ、どのディレクトリからでも実行できるのか？
+そのため、デバッグプローブやマイコンを変更する場合も、対応する設定ファイルを選択することで構成を切り替えられます。
 
-OpenOCDの起動には、2つの検索の仕組みが関係しています。
+### 設定ファイルのカスタマイズ
 
-まず、Windowsは環境変数 `PATH` を参照して `openocd.exe` を探します。そのため、OpenOCDをインストールしたディレクトリに移動する必要はありません。
+OpenOCDに付属する設定ファイルは、通常、そのまま使用します。
 
-次に、OpenOCDは自身のスクリプト検索パスを使って、`-f` に指定された設定ファイルを探します。
+通信速度などの調整は、`-c` オプションで指定できます。今回の `-c "adapter speed 1000"` もその一例です。
 
-例えば、次の指定は、カレントディレクトリからの相対パスだけを意味するものではありません。
+ボード固有の設定や、複数の設定をまとめたい場合は、独自の `.cfg` ファイルを作成することもできます。
 
-```text
-interface/cmsis-dap.cfg
-target/rp2040.cfg
+例えば、次のような `pico-debug.cfg` を用意します。
+
+```tcl
+source [find interface/cmsis-dap.cfg]
+adapter speed 1000
+source [find target/rp2040.cfg]
 ```
 
-OpenOCDのインストール先に含まれる `scripts` ディレクトリなどからも検索されます。
+このファイルをカレントディレクトリに保存すれば、PowerShellから次のように起動できます。
 
-実際の場所は、PowerShellで確認できます。
+```powershell
+openocd -f .\pico-debug.cfg
+```
+
+標準の設定ファイルを直接変更せず、必要な設定だけを追加する方法です。
+
+今回のTry Kernelでは、独自の設定ファイルを作る必要はなく、最初に示した起動コマンドを使用しています。
+
+## 設定ファイルの保存先を確認する
+
+今回使用しているxPack OpenOCD 0.12.0-7.1では、実行ファイルと設定ファイルは次の場所に配置されています。
+
+```text
+.content/
+├── bin/
+│   └── openocd.exe
+└── openocd/
+    └── scripts/
+        ├── interface/
+        │   └── cmsis-dap.cfg
+        └── target/
+            └── rp2040.cfg
+```
+
+実行ファイルの保存先は、PowerShellから次のコマンドで確認できます。
 
 ```powershell
 Get-Command openocd | Select-Object Source
+```
+
+私の環境では、次の場所にインストールされていました。
+
+```text
+C:\Users\yamao\AppData\Roaming\xPacks\@xpack-dev-tools\openocd\0.12.0-7.1\.content\bin\openocd.exe
+```
+
+また、OpenOCDが設定ファイルをどこから検索しているかは、次のコマンドで確認できます。
+
+```powershell
 openocd -c "echo [find interface/cmsis-dap.cfg]; echo [find target/rp2040.cfg]; shutdown"
 ```
 
-前者は実行ファイルの場所、後者はOpenOCDが見つけた設定ファイルの場所を表示します。
+実行結果は次のとおりです（起動時のバージョン表示などは省略）。
 
-<!-- 実行結果を確認して、ここに実際のパスを記載する -->
+```text
+C:/Users/yamao/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/bin/../openocd/scripts/interface/cmsis-dap.cfg
+C:/Users/yamao/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/bin/../openocd/scripts/target/rp2040.cfg
+shutdown command invoked
+```
+
+`bin/..` は、`bin` の1つ上のディレクトリを意味します。したがって、2つの設定ファイルは、実際には次のディレクトリ以下に配置されています。
+
+```text
+C:/Users/yamao/AppData/Roaming/xPacks/@xpack-dev-tools/openocd/0.12.0-7.1/.content/openocd/scripts/
+```
+
+ここで、OpenOCDをどのディレクトリからでも実行できる理由も分かります。
+
+- `openocd.exe` は、Windowsの環境変数 `PATH` から検索される。
+- `-f` で指定した `.cfg` は、OpenOCD自身のスクリプト検索パスから検索される。
+
+つまり、**実行ファイルと設定ファイルは、それぞれ別の仕組みで検索されます。**
+
+そのため、カレントディレクトリがTry Kernelのソースコードの場所であっても、OpenOCDを起動できます。
 
 ## 起動後の動作
 
@@ -120,7 +180,7 @@ openocd -c "echo [find interface/cmsis-dap.cfg]; echo [find target/rp2040.cfg]; 
 
 RP2040にはCortex-M0+が2コア搭載されているため、OpenOCDのログには `rp2040.core0` と `rp2040.core1` が表示されます。
 
-また、GDBからの接続を受け付けるため、通常はTCPポート3333でGDBサーバが起動します。
+また、OpenOCDはGDBからの接続を受け付けるためのGDBサーバを起動します。標準ではTCPポート3333を使用します。
 
 ```text
 [rp2040.core0] Cortex-M0+ r0p1 processor detected
@@ -128,7 +188,21 @@ RP2040にはCortex-M0+が2コア搭載されているため、OpenOCDのログ�
 [rp2040.core0] starting gdb server on 3333
 ```
 
+GDBからは、次のコマンドでOpenOCDに接続します。
+
+```gdb
+target remote localhost:3333
+```
+
+`localhost` は自分自身のPCを表し、`3333` はOpenOCDが待ち受けているTCPポート番号です。
+
+今回はOpenOCDとGDBを同じWindows PC上で実行するため、`localhost` を指定しています。
+
+なお、ポート番号はOpenOCDの設定で変更できますが、本記事では標準の3333を使用します。
+
 OpenOCDは起動したままにして、別のPowerShellからGDBを実行します。
+
+---
 
 # GDBの起動と接続
 
