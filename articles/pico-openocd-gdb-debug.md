@@ -3,7 +3,7 @@ title: "OpenOCDとGDBでRaspberry Pi Picoをデバッグする"
 emoji: "🔧"
 type: "tech"
 topics: ["raspberrypi", "pico", "openocd", "gdb"]
-published: false
+published: true
 ---
 
 # はじめに
@@ -227,9 +227,9 @@ Reading symbols from build/trykernel.elf...
 (gdb)
 ```
 
-GDBが起動したら、`target remote` コマンドを使用してOpenOCDに接続します。
+GDBが起動したら、`target remote` コマンドを使用してOpenOCDのGDBサーバに接続します。
 
-`localhost:3333` は、OpenOCDがGDBサーバとして待ち受けている接続先です。今回は同じPC上でOpenOCDとGDBを実行しているため、`localhost` を指定します。
+OpenOCDは起動時にGDBサーバを立ち上げ、GDBからの接続を待ち受けています。`localhost:3333` はその接続先で、`localhost` は同じPC、`3333` はGDBサーバのポート番号を表します。
 
 ```text
 (gdb) target remote localhost:3333
