@@ -39,11 +39,15 @@ OpenOCDとGDBのインストール、デバッグプローブの準備、配線�
 
 # Vimのtermdebugとは
 
-`termdebug` は、VimからGDBを操作するための標準プラグインです。
+`termdebug` はVim 9に標準で付属するプラグインで、追加のインストールは不要です。
+
+`termdebug` はGDBを置き換えるものではなく、**GDBのデバッグ機能とVimのソースコード表示・操作機能を連携させる仕組み**です。
 
 Vim内にGDBのターミナルを開くだけでなく、GDBの停止位置に合わせてソースコードを表示したり、ソースコード上からブレークポイントを操作したりできます。
 
-Vim 9では、追加のプラグインをインストールせずに利用できます。
+デバッグ操作は、**GDBのターミナルからコマンドを入力する方法**と、**Vimのソースコード表示画面から `:Break` や `:Step` などのコマンドを実行する方法**の両方が使えます。
+
+以降では、操作する場所を区別して説明します。
 
 # コマンドラインのGDBとの違いは？
 
@@ -55,18 +59,14 @@ Vimの `termdebug` を使うと、GDBのデバッグ機能をそのまま利用�
 |---|---|---|
 | ソースコードの確認 | GDBのコマンドや別のエディタで確認 | 停止位置のソースを自動表示 |
 | 実行位置の確認 | ファイル名と行番号で確認 | 該当行を強調表示 |
-| ブレークポイント設定 | `break main`、`break ファイル名:行番号` | 対象行にカーソルを置いて `:Break` |
-| ブレークポイント解除 | `delete 番号` | 対象行で `:Clear` |
-| ステップ実行 | `step`、`next`、`finish` | `:Step`、`:Over`、`:Finish` |
-| 変数の確認 | `print`、`display` | `:Evaluate`、GDBコンソールの `display` |
+| ブレークポイント設定 | `break main`、`break ファイル名:行番号` | ソースコード上で `:Break` |
+| ブレークポイント解除 | `delete 番号` | ソースコード上で `:Clear` |
+| ステップ実行 | `step`、`next`、`finish` | ソースコード表示画面で `:Step`、`:Over`、`:Finish` |
+| 変数の確認 | `print`、`display` | ソースコード表示画面で `:Evaluate`（継続的な監視にはGDBターミナルで `display` を実行） |
 
-今回、特に便利だと感じたのは、**ブレークポイントで停止すると、その場所のソースコードが自動的に表示される**ことです。
+今回、特に便利だと感じたのは、ブレークポイントで停止すると、その場所のソースコードが自動的に表示されることです。
 
 また、ブレークポイントを設定する際に、関数名や行番号をGDBへ入力する必要がなく、ソースコード上のブレークポイントを設定したい行にカーソルを置いて :Break を実行できます。
-
-一方、レジスタやメモリの確認などは、これまでどおりGDBコンソールから操作できます。
-
-`termdebug` はGDBを置き換えるものではなく、**GDBの機能にVimのソース表示と操作性を組み合わせる仕組み**です。
 
 ---
 
@@ -109,49 +109,58 @@ let g:termdebugger = 'arm-none-eabi-gdb'
 
 ---
 
-# GDBの起動
-
-事前設定が完了していれば、GVimから次のコマンドでGDBを起動できます。
-
-```vim
-:Termdebug
-```
-
-GVimの画面が分割され、GDBのコンソールが表示されます。
-
-GDBコンソールには、次のようなメッセージが表示されました。
-
-```text
-No symbol table is loaded. Use the "file" command.
-gdb>
-```
-
-この時点では、デバッグ対象のELFファイルを読み込んでいないため、シンボル情報がありません。
-
-## termdebugを起動する
-
-次のコマンドでGDBを起動します。
-
-```vim
-:Termdebug
-```
-
-GVimの画面が分割され、GDBのコンソールが表示されます。
-
-GDBコンソールには、次のようなメッセージが表示されました。
-
-```text
-No symbol table is loaded. Use the "file" command.
-gdb>
-```
-
-この時点では、デバッグ対象のELFファイルを読み込んでいないため、シンボル情報がありません。
-
 # Try Kernelをデバッグする
+
+ここからは、実際にRaspberry Pi Pico上で動作するプログラムを使って、`termdebug` によるデバッグを試してみます。
+
+今回のデバッグ対象は、Interface誌の特集「ラズパイPicoで1500行 ゼロから作るOS」で紹介されている自作OS「Try Kernel」です。
+
+Try Kernelの開発環境の構築方法や、OpenOCDとGDBを使ったコマンドラインでのデバッグ方法については、以下の記事で紹介しています。
+
+- [Windows 11でRaspberry Pi PicoのTry Kernel開発環境を構築する](https://zenn.dev/helowota/articles/pico-trykernel-windows-env)
+- [Raspberry Pi PicoをOpenOCDとGDBでデバッグする](https://zenn.dev/helowota/articles/pico-openocd-gdb-debug)
+
+今回は、この環境を利用して、Vimのソースコード表示画面とGDBを連携させたデバッグ操作を確認します。
+
+## OpenOCDを起動する
+
+まず、PowerShellでOpenOCDを起動します。
+
+```powershell
+openocd -f interface/cmsis-dap.cfg -c "adapter speed 1000" -f target/rp2040.cfg
+```
+
+ここでは、デバッグプローブ（CMSIS-DAP）とデバッグ対象（RP2040）の設定ファイルを指定しています。また、`adapter speed 1000` でSWDの通信速度を1000kHzに設定しています。
+
+OpenOCDはGDBサーバとして動作し、GDBからの接続を待ち受けます。
+
+OpenOCDを起動したPowerShellは、そのまま開いておきます。
+
+## termdebugからGDBを起動する
+
+GVimで次のコマンドを実行します。
+
+```vim
+:Termdebug
+```
+
+GVimの画面が分割され、上側にGDBターミナル、下側にソースコード表示画面が開きます。
+
+<img src="/images/pico-vim9-termdebug/termdebug-start.png"
+     alt="termdebug起動直後のGVim画面"
+     width="700">
+
+上側のGDBターミナルには `No symbol table is loaded. Use the "file" command.` と表示されています。これは、まだデバッグ対象のELFファイルを読み込んでいないためです。
+
+次に、GDBターミナルからELFファイルを読み込み、OpenOCDへ接続します。
+
+---
 
 ## ELFファイルを読み込む
 
-GDBコンソールの `gdb>` プロンプトで、Try KernelのELFファイルを読み込みます。
+ここからは、GVim内に開いた**GDBターミナル**で操作します。
+
+`gdb>` プロンプトで、Try KernelのELFファイルを読み込みます。
 
 ```gdb
 file C:/home/<ユーザ名>/repos/src/pico/interface_trykernel/part_5/build/trykernel.elf
@@ -166,19 +175,9 @@ Reading symbols from C:/home/.../part_5/build/trykernel.elf...
 gdb>
 ```
 
-## OpenOCDを起動する
-
-別のPowerShellでOpenOCDを起動します。
-
-```powershell
-openocd -f interface/cmsis-dap.cfg -c "adapter speed 1000" -f target/rp2040.cfg
-```
-
-OpenOCDはGDBサーバとして動作し、GDBからの接続を待ち受けます。
-
 ## OpenOCDに接続する
 
-GVimのGDBコンソールから接続します。
+引き続き、GDBターミナルでOpenOCDに接続します。
 
 ```gdb
 target remote localhost:3333
@@ -194,7 +193,29 @@ monitor reset halt
 
 今回の環境では、`kernel/dispatch.S` が自動的に開かれ、現在の実行位置が強調表示されました。
 
-単にGDBのターミナルをVim内で動かしているだけではなく、**GDBの実行位置とVimのソース表示が連動している**ことが確認できました。
+ここで、**GDBの実行位置とVimのソースコード表示が連動している**ことが確認できました。
+
+## ソースコード上からデバッグする
+
+ここまでの操作で、デバッグを開始する準備が整いました。
+
+これ以降は、GDBターミナルだけでなく、**Vimのソースコード表示画面からもデバッグ操作ができます。**
+
+例えば、ブレークポイントを設定したい行にカーソルを移動し、次のコマンドを実行します。
+
+```vim
+:Break
+```
+
+また、ステップ実行には次のコマンドが使えます。
+
+```vim
+:Step
+```
+
+これらの操作は、GDBターミナルではなく、**Vimのソースコード表示画面を選択した状態で実行します。**
+
+具体的な操作方法は、次の節で説明します。
 
 # ブレークポイントとステップ実行
 
